@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model StudentResult {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String   @map("normalized_name")
+  seatNumber     String   @map("seat_number")
+  result         String
+  percentage     Float
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([seatNumber])
+  @@index([name])
+  @@index([normalizedName])
+  @@map("results")
+}
+
+
+model SystemStat {
+  id               String    @id @default("singleton")
+  visitorCount     Int       @default(0) @map("visitor_count")
+  lastImportedFile String?   @map("last_imported_file")
+  lastImportDate   DateTime? @map("last_import_date")
+
+  @@map("system_stats")
+}
+
+model UniqueVisitor {
+  id        String   @id
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("unique_visitors")
+}
+
