@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { CheckCircle2, XCircle, RefreshCw, Printer, Award, User, Hash, Percent, Copy, Check, ArrowRight } from 'lucide-react';
-
+import { useState, useEffect } from 'react';
+import { CheckCircle2, XCircle, Printer, Award, User, Hash, Percent, Copy, Check, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export interface StudentResultData {
@@ -21,6 +20,23 @@ interface ResultCardProps {
 
 export default function ResultCard({ student, onSearchAgain }: ResultCardProps) {
   const [copied, setCopied] = useState(false);
+  const [rank, setRank] = useState<number | undefined>(student.rank);
+
+  const totalScore = Math.round(student.percentage * 3.2 * 10) / 10;
+
+  useEffect(() => {
+    setRank(student.rank);
+    if (!student.rank && student.percentage !== undefined) {
+      fetch(`/api/results/rank?percentage=${student.percentage}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && typeof data.rank === 'number') {
+            setRank(data.rank);
+          }
+        })
+        .catch(err => console.error('Error fetching rank:', err));
+    }
+  }, [student.id, student.percentage, student.rank]);
 
   const isPassed =
     student.result.includes('ناجح') ||
@@ -31,8 +47,10 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
     window.print();
   };
 
+  const formattedRank = rank ? `#${rank.toLocaleString('en-US')}` : 'جاري الحساب...';
+
   const handleCopy = async () => {
-    const text = `نتيجة الطالب: ${student.name}\nرقم الجلوس: ${student.seatNumber}\nالنسبة المئوية: ${student.percentage}%\nالدرجة: ${Math.round(student.percentage * 4.1 * 10) / 10} من 410\nالترتيب على الجمهورية: #${student.rank ? student.rank.toLocaleString('ar-EG') : '-'}\nالنتيجة: ${student.result}`;
+    const text = `نتيجة الطالب: ${student.name}\nرقم الجلوس: ${student.seatNumber}\nالنسبة المئوية: ${student.percentage}%\nالدرجة: ${totalScore} من 320\nالترتيب على الجمهورية: ${formattedRank}\nالنتيجة: ${student.result}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -72,7 +90,6 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
               <div>
                 <h3 className="text-xl font-black text-stone-900 tracking-tight">بطاقة نتيجة الطالب</h3>
                 <p className="text-xs text-stone-500">نتيجة امتحانات شهادة الثانوية العامة</p>
-
               </div>
             </div>
 
@@ -129,7 +146,7 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
                 <span>الترتيب على الجمهورية:</span>
               </div>
               <p className="text-base font-black text-emerald-800 font-mono tracking-wide pr-1">
-                {student.rank ? `#${student.rank.toLocaleString('ar-EG')}` : 'حساب...'}
+                {formattedRank}
               </p>
             </div>
           </div>
@@ -154,8 +171,8 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
 
               <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-100/80 border border-amber-200 text-stone-800 font-bold text-sm">
                 <span>الدرجة:</span>
-                <span className="font-mono text-brand-900 text-base">{(Math.round(student.percentage * 4.1 * 10) / 10)}</span>
-                <span className="text-xs text-stone-500">من 410</span>
+                <span className="font-mono text-brand-900 text-base">{totalScore}</span>
+                <span className="text-xs text-stone-500">من 320</span>
               </div>
             </div>
 
@@ -214,7 +231,6 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
         </div>
       </div>
 
-
       {/* Printable Official Certificate View (Only Visible During Printing) */}
       <div className="hidden print:block text-slate-900 font-sans p-8 border-4 border-amber-600 rounded-xl max-w-3xl mx-auto my-0 bg-white">
         <div className="border-2 border-slate-900 p-6 space-y-6 text-center">
@@ -267,11 +283,11 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
               </div>
               <div>
                 <span className="font-bold text-slate-600">المجموع والنسبة: </span>
-                <span className="font-black text-slate-900 font-mono">{student.percentage}% ({(Math.round(student.percentage * 4.1 * 10) / 10)} من 410)</span>
+                <span className="font-black text-slate-900 font-mono">{student.percentage}% ({totalScore} من 320)</span>
               </div>
               <div>
                 <span className="font-bold text-slate-600">الترتيب على الجمهورية: </span>
-                <span className="font-black text-emerald-800 font-mono">{student.rank ? `#${student.rank.toLocaleString('ar-EG')}` : '-'}</span>
+                <span className="font-black text-emerald-800 font-mono">{formattedRank}</span>
               </div>
             </div>
           </div>
@@ -293,6 +309,4 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
       </div>
     </motion.div>
   );
-
 }
-

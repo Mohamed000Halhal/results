@@ -83,7 +83,7 @@ export default function MultipleResultsList({
                     {student.seatNumber}
                   </span>
                   <span>•</span>
-                  <span>النسبة: <strong className="text-stone-900 font-mono">{student.percentage}%</strong> ({Math.round(student.percentage * 4.1 * 10) / 10} درجة من 410)</span>
+                  <span>النسبة: <strong className="text-stone-900 font-mono">{student.percentage}%</strong> ({Math.round(student.percentage * 3.2 * 10) / 10} درجة من 320)</span>
                 </div>
               </div>
 
