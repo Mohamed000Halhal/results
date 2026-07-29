@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Trophy } from 'lucide-react';
+import VisitorCounter from './VisitorCounter';
 
 export default function Navbar() {
   return (
@@ -29,6 +30,8 @@ export default function Navbar() {
 
         {/* Navigation Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <VisitorCounter />
+
           <Link
             href="/top-students"
             className="flex items-center gap-2 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold text-stone-800 bg-amber-100/60 hover:bg-amber-200/70 border border-amber-300/70 transition-all shadow-sm group"
@@ -38,10 +41,10 @@ export default function Navbar() {
           </Link>
         </div>
 
-
       </div>
     </header>
   );
 }
+
 
 
