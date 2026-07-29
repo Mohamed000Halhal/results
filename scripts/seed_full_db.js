@@ -71,9 +71,7 @@ async function seedFull() {
 
   console.log(`Mapped columns -> Name: "${nameCol}", Seat: "${seatCol}", Result: "${resultCol}", Percentage: "${percentageCol}"`);
 
-  // Clear existing
-  console.log('Clearing existing results table...');
-  await prisma.studentResult.deleteMany({});
+  console.log('Appending data to existing results table (skip duplicates enabled)...');
 
   const validRecords = [];
   let invalidCount = 0;
@@ -108,13 +106,13 @@ async function seedFull() {
 
   console.log(`Valid records prepared for insertion: ${validRecords.length} (Skipped/Invalid: ${invalidCount})`);
 
-  // Batch insert in chunks of 5,000
+  // Batch insert in chunks of 5,000 with skipDuplicates
   const chunkSize = 5000;
   const totalChunks = Math.ceil(validRecords.length / chunkSize);
 
   for (let i = 0; i < validRecords.length; i += chunkSize) {
     const chunk = validRecords.slice(i, i + chunkSize);
-    await prisma.studentResult.createMany({ data: chunk });
+    await prisma.studentResult.createMany({ data: chunk, skipDuplicates: true });
     const currentChunk = Math.floor(i / chunkSize) + 1;
     if (currentChunk % 10 === 0 || currentChunk === totalChunks) {
       console.log(`Inserted batch ${currentChunk} / ${totalChunks} (${Math.min(i + chunkSize, validRecords.length)} / ${validRecords.length} records)`);
