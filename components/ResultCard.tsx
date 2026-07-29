@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { CheckCircle2, XCircle, Printer, Award, User, Hash, Percent, Copy, Check, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 export interface StudentResultData {
   id: string;
@@ -61,14 +60,9 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.4 }}
-      className="w-full max-w-2xl mx-auto"
-    >
+    <div className="w-full max-w-2xl mx-auto">
       {/* Standard Interactive Dark Card (Hidden on Print) */}
-      <div className="bg-white/95 backdrop-blur-2xl border border-amber-200/90 rounded-3xl overflow-hidden shadow-xl relative print:hidden">
+      <div className="bg-white border border-amber-200/90 rounded-3xl overflow-hidden shadow-xl relative print:hidden">
         
         {/* Top Glowing Header Accent Bar */}
         <div
@@ -176,13 +170,11 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
               </div>
             </div>
 
-            {/* Glowing Animated Progress Bar */}
+            {/* Progress Bar */}
             <div className="w-full max-w-md mx-auto bg-amber-100/90 h-3.5 rounded-full overflow-hidden p-0.5 border border-amber-200 shadow-inner">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, Math.max(0, student.percentage))}%` }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-                className={`h-full rounded-full shadow-md ${
+              <div
+                style={{ width: `${Math.min(100, Math.max(0, student.percentage))}%` }}
+                className={`h-full rounded-full shadow-md transition-all duration-300 ${
                   isPassed
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-500'
                     : 'bg-gradient-to-r from-rose-600 to-red-500'
@@ -307,6 +299,6 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
 
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

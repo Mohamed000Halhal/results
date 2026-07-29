@@ -3,7 +3,7 @@
 import { StudentResultData } from './ResultCard';
 import { Users, ArrowLeft, ArrowRight, Hash } from 'lucide-react';
 
-import { motion } from 'framer-motion';
+
 
 interface MultipleResultsListProps {
   results: StudentResultData[];
@@ -22,14 +22,9 @@ export default function MultipleResultsList({
   const isTruncated = totalCount && totalCount > results.length;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="w-full max-w-2xl mx-auto space-y-4"
-    >
+    <div className="w-full max-w-2xl mx-auto space-y-4">
       {/* Alert Header Box */}
-      <div className="bg-amber-100/70 border border-amber-300 rounded-2xl p-5 flex items-start gap-4 shadow-md backdrop-blur-xl">
+      <div className="bg-amber-100/70 border border-amber-300 rounded-2xl p-5 flex items-start gap-4 shadow-md">
         <div className="p-3 bg-amber-200/80 text-amber-900 rounded-xl mt-0.5 border border-amber-300">
           <Users className="w-5 h-5" />
         </div>
@@ -48,7 +43,7 @@ export default function MultipleResultsList({
       </div>
 
       {/* Results Selector List */}
-      <div className="bg-white/95 backdrop-blur-2xl border border-amber-200/90 rounded-3xl overflow-hidden shadow-xl divide-y divide-amber-100">
+      <div className="bg-white border border-amber-200/90 rounded-3xl overflow-hidden shadow-xl divide-y divide-amber-100">
         {results.map((student) => {
           const isPassed =
             student.result.includes('ناجح') ||
@@ -105,7 +100,7 @@ export default function MultipleResultsList({
           <span>العودة لصفحة البحث</span>
         </button>
       </div>
-    </motion.div>
+    </div>
 
 
   );

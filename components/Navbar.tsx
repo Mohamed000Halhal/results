@@ -5,7 +5,7 @@ import VisitorCounter from './VisitorCounter';
 
 export default function Navbar() {
   return (
-    <header className="w-full bg-[#fcf9f4]/90 border-b border-amber-200/60 sticky top-0 z-50 backdrop-blur-xl transition-all shadow-sm">
+    <header className="w-full bg-[#fcf9f4] border-b border-amber-200/60 sticky top-0 z-50 transition-all shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         
         {/* Brand Logo & Title */}

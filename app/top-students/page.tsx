@@ -99,7 +99,7 @@ export default function TopStudentsPage() {
           </div>
         ) : (
           /* Top Students Leaderboard List */
-          <div className="bg-white/95 border border-amber-200/90 rounded-3xl overflow-hidden shadow-xl space-y-0">
+          <div className="bg-white border border-amber-200/90 rounded-3xl overflow-hidden shadow-xl space-y-0">
             {isLoading ? (
               <div className="p-16 text-center">
                 <Loader2 className="w-8 h-8 text-amber-700 animate-spin mx-auto" />
