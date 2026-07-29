@@ -7,15 +7,20 @@ import { motion } from 'framer-motion';
 
 interface MultipleResultsListProps {
   results: StudentResultData[];
+  totalCount?: number;
   onSelectStudent: (student: StudentResultData) => void;
   onSearchAgain: () => void;
 }
 
 export default function MultipleResultsList({
   results,
+  totalCount,
   onSelectStudent,
   onSearchAgain,
 }: MultipleResultsListProps) {
+  const displayCount = totalCount || results.length;
+  const isTruncated = totalCount && totalCount > results.length;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
@@ -30,10 +35,14 @@ export default function MultipleResultsList({
         </div>
         <div className="space-y-1">
           <h3 className="text-base font-extrabold text-amber-950">
-            تم العثور على أكثر من طالب ({results.length} نتائج)
+            {isTruncated
+              ? `تم العثور على ${displayCount.toLocaleString('ar-EG')} طالب (يتم عرض أول ${results.length} نتائج)`
+              : `تم العثور على ${results.length.toLocaleString('ar-EG')} نتائج`}
           </h3>
           <p className="text-xs text-amber-900/80 leading-relaxed font-bold">
-            اختر الطالب المطلوب من القائمة أدناه لعرض بطاقة النتيجة المفصلة:
+            {isTruncated
+              ? 'اختر الطالب المطلوب أدناه، أو قم بتضييق نطاق البحث لكتابة الاسم الثلاثي/الرباعي أو رقم الجلوس.'
+              : 'اختر الطالب المطلوب من القائمة أدناه لعرض بطاقة النتيجة المفصلة:'}
           </p>
         </div>
       </div>

@@ -14,12 +14,14 @@ export default function HomePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [singleStudent, setSingleStudent] = useState<StudentResultData | null>(null);
   const [multipleStudents, setMultipleStudents] = useState<StudentResultData[] | null>(null);
+  const [totalMatches, setTotalMatches] = useState<number | undefined>(undefined);
 
   const handleSearch = async (query: string) => {
     setIsLoading(true);
     setErrorMsg(null);
     setSingleStudent(null);
     setMultipleStudents(null);
+    setTotalMatches(undefined);
 
     try {
       const res = await fetch(`/api/results/search?q=${encodeURIComponent(query)}`);
@@ -37,6 +39,7 @@ export default function HomePage() {
         setSingleStudent(data.result);
       } else if (data.type === 'multiple') {
         setMultipleStudents(data.results);
+        setTotalMatches(data.count);
       }
     } catch (err) {
       console.error('Search request failed:', err);
@@ -49,6 +52,7 @@ export default function HomePage() {
   const handleSearchAgain = () => {
     setSingleStudent(null);
     setMultipleStudents(null);
+    setTotalMatches(undefined);
     setErrorMsg(null);
   };
 
@@ -103,6 +107,7 @@ export default function HomePage() {
         {multipleStudents && (
           <MultipleResultsList
             results={multipleStudents}
+            totalCount={totalMatches}
             onSelectStudent={(student) => {
               setSingleStudent(student);
               setMultipleStudents(null);

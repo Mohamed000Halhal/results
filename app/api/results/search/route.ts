@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { isSeatNumber, normalizeArabic, parseArabicNumerals } from '@/lib/arabic';
+import { isSeatNumber, normalizeArabic, parseArabicNumerals, buildArabicSearchClauses } from '@/lib/arabic';
 import { checkRateLimit } from '@/lib/rateLimit';
 
 // Ultra-fast In-memory LRU Cache for 0ms responses
@@ -17,15 +17,6 @@ function setCachedResult(key: string, data: any) {
     if (firstKey) searchCache.delete(firstKey);
   }
   searchCache.set(key, data);
-}
-
-// Computes exact B-tree index range bounds for Arabic text
-function getRangeBounds(term: string) {
-  if (!term) return { lower: '', upper: '' };
-  const lastChar = term.slice(-1);
-  const nextChar = String.fromCharCode(lastChar.charCodeAt(0) + 1);
-  const upper = term.slice(0, -1) + nextChar;
-  return { lower: term, upper };
 }
 
 export async function GET(request: NextRequest) {
@@ -49,7 +40,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-
     if (query.length < 2 && !isSeatNumber(query)) {
       return NextResponse.json(
         { error: 'يرجى إدخال حرفين على الأقل للبحث عن الاسم' },
@@ -67,7 +57,7 @@ export async function GET(request: NextRequest) {
     const isSeat = isSeatNumber(query);
 
     if (isSeat) {
-      // 2. Exact B-Tree Index Lookup for Seat Number (WHERE seat_number = ?) -> ~1ms
+      // 2. Exact B-Tree Index Lookup for Seat Number
       const seat = parseArabicNumerals(query);
       
       const rawResults = await db.$queryRaw<Array<{
@@ -100,41 +90,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(responseData);
 
     } else {
-      // 3. Ultra-fast B-Tree Range Scan for Name Search (WHERE normalized_name >= ? AND normalized_name < ?) -> ~1ms
+      // 3. Smart Multi-token & Compound-aware Search for Name
       const normalizedQuery = normalizeArabic(query);
-      const { lower, upper } = getRangeBounds(normalizedQuery);
+      const firstWord = normalizedQuery.split(' ')[0] || '';
+      const { sqlWhere, params } = buildArabicSearchClauses(query);
 
-      let students = await db.$queryRaw<Array<{
-        id: string;
-        name: string;
-        seatNumber: string;
-        result: string;
-        percentage: number;
-      }>>`
-        SELECT id, name, seat_number as seatNumber, result, percentage 
-        FROM results 
-        WHERE normalized_name >= ${lower} AND normalized_name < ${upper} 
-        LIMIT 20
-      `;
+      // Get total count of matching students
+      const countSql = `SELECT COUNT(*) as count FROM results WHERE ${sqlWhere}`;
+      const countResult = await db.$queryRawUnsafe<Array<{ count: number }>>(countSql, ...params);
+      const totalCount = countResult[0]?.count || 0;
 
-      // Fall back to contains lookup if range scan yields 0 results (e.g. searching for middle/last name)
-      if (!students || students.length === 0) {
-        const containsPattern = `%${normalizedQuery}%`;
-        students = await db.$queryRaw<Array<{
-          id: string;
-          name: string;
-          seatNumber: string;
-          result: string;
-          percentage: number;
-        }>>`
-          SELECT id, name, seat_number as seatNumber, result, percentage 
-          FROM results 
-          WHERE normalized_name LIKE ${containsPattern} 
-          LIMIT 20
-        `;
-      }
-
-      if (!students || students.length === 0) {
+      if (totalCount === 0) {
         const responseData = {
           type: 'none',
           message: `لم يتم العثور على نتائج تطابق: "${query}"`,
@@ -143,7 +109,36 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(responseData);
       }
 
-      if (students.length === 1) {
+      // Fetch top 50 matches ranked by prefix relevance
+      const searchSql = `
+        SELECT id, name, seat_number as seatNumber, result, percentage 
+        FROM results 
+        WHERE ${sqlWhere} 
+        ORDER BY 
+          CASE 
+            WHEN normalized_name LIKE ? THEN 1
+            WHEN normalized_name LIKE ? THEN 2
+            ELSE 3
+          END,
+          CAST(seat_number AS INTEGER) ASC
+        LIMIT 50
+      `;
+
+      const queryParams = [
+        `${normalizedQuery}%`,
+        `${firstWord}%`,
+        ...params
+      ];
+
+      const students = await db.$queryRawUnsafe<Array<{
+        id: string;
+        name: string;
+        seatNumber: string;
+        result: string;
+        percentage: number;
+      }>>(searchSql, ...queryParams);
+
+      if (students.length === 1 && totalCount === 1) {
         const responseData = {
           type: 'single',
           result: students[0],
@@ -155,7 +150,7 @@ export async function GET(request: NextRequest) {
       const responseData = {
         type: 'multiple',
         results: students,
-        count: students.length,
+        count: totalCount,
       };
       setCachedResult(cacheKey, responseData);
       return NextResponse.json(responseData);
@@ -163,9 +158,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Search API error:', error);
     return NextResponse.json(
-      { type: 'none', message: 'لم يتم إضافة بيانات النتائج بعد على قاعدة البيانات' },
-      { status: 200 }
+      { type: 'none', message: 'حدث خطأ في عملية البحث أو تعذر الوصول إلى قاعدة البيانات' },
+      { status: 500 }
     );
   }
 }
+
 
