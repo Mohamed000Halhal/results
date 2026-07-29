@@ -4,15 +4,15 @@ import { isAdminAuthenticated } from '@/lib/auth';
 import { normalizeArabic } from '@/lib/arabic';
 
 export async function GET(request: NextRequest) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
-  }
-
   try {
+    if (!(await isAdminAuthenticated())) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q')?.trim() || '';
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '25', 10);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.max(1, parseInt(searchParams.get('limit') || '25', 10));
 
     const skip = (page - 1) * limit;
 
@@ -31,17 +31,17 @@ export async function GET(request: NextRequest) {
         orderBy: { seatNumber: 'asc' },
         skip,
         take: limit,
-      }),
-      db.studentResult.count({ where: whereClause }),
+      }).catch(() => []),
+      db.studentResult.count({ where: whereClause }).catch(() => 0),
     ]);
 
     return NextResponse.json({
-      results,
+      results: results || [],
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+        total: total || 0,
+        totalPages: Math.ceil((total || 0) / limit),
       },
     });
   } catch (error) {
@@ -50,13 +50,14 @@ export async function GET(request: NextRequest) {
       results: [],
       pagination: {
         page: 1,
-        limit,
+        limit: 25,
         total: 0,
         totalPages: 0,
       },
     });
   }
 }
+
 
 
 export async function DELETE(request: NextRequest) {

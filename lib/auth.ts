@@ -32,12 +32,18 @@ export function verifyAdminToken(token: string): AdminPayload | null {
  * Check if current request has a valid admin cookie session.
  */
 export async function isAdminAuthenticated(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-  if (!token) return false;
-  const payload = verifyAdminToken(token);
-  return payload?.role === 'admin';
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    if (!token) return false;
+    const payload = verifyAdminToken(token);
+    return payload?.role === 'admin';
+  } catch (error) {
+    console.error('Auth error:', error);
+    return false;
+  }
 }
+
 
 /**
  * Validate password against environment configuration.
