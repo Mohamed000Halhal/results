@@ -8,9 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function getDbUrl(): string {
-  if (process.env.DATABASE_URL) {
-    return process.env.DATABASE_URL;
-  }
+  const envUrl = process.env.DATABASE_URL;
 
   // On Vercel / Serverless, use /tmp/dev.db which is writable
   if (process.env.VERCEL) {
@@ -28,6 +26,12 @@ function getDbUrl(): string {
     return `file:${tmpPath}`;
   }
 
+  // If DATABASE_URL is explicitly set to a non-dev.db URL (e.g. Postgres), use it
+  if (envUrl && !envUrl.includes('dev.db')) {
+    return envUrl;
+  }
+
+  // Always resolve absolute path to prisma/dev.db to avoid relative path resolution bugs
   const defaultPath = path.join(process.cwd(), 'prisma', 'dev.db');
   return `file:${defaultPath}`;
 }
