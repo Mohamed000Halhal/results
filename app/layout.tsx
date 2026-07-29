@@ -12,7 +12,13 @@ export const metadata: Metadata = {
   title: 'نتائج الثانوية العامة — الاستعلام عن النتيجة',
   description: 'موقع الاستعلام السريع والموثوق عن نتائج امتحانات الثانوية العامة برقم الجلوس أو اسم الطالب',
   keywords: ['نتائج الثانوية العامة', 'نتيجة الثانوية', 'رقم الجلوس', 'اسم الطالب', 'امتحانات'],
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 };
+
 
 export default function RootLayout({
   children,
