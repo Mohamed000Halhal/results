@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { isSeatNumber, normalizeArabic, parseArabicNumerals, buildArabicSearchClauses } from '@/lib/arabic';
+import { isSeatNumber, normalizeArabic, parseArabicNumerals } from '@/lib/arabic';
 import { checkRateLimit } from '@/lib/rateLimit';
 
 // Ultra-fast In-memory LRU Cache for 0ms responses
@@ -57,23 +57,21 @@ export async function GET(request: NextRequest) {
     const isSeat = isSeatNumber(query);
 
     if (isSeat) {
-      // 2. Exact B-Tree Index Lookup for Seat Number
+      // 2. Exact Index Lookup for Seat Number
       const seat = parseArabicNumerals(query);
       
-      const rawResults = await db.$queryRaw<Array<{
-        id: string;
-        name: string;
-        seatNumber: string;
-        result: string;
-        percentage: number;
-      }>>`
-        SELECT id, name, seat_number as seatNumber, result, percentage 
-        FROM results 
-        WHERE seat_number = ${seat} 
-        LIMIT 1
-      `;
+      const student = await db.studentResult.findFirst({
+        where: { seatNumber: seat },
+        select: {
+          id: true,
+          name: true,
+          seatNumber: true,
+          result: true,
+          percentage: true,
+        },
+      });
 
-      if (!rawResults || rawResults.length === 0) {
+      if (!student) {
         const responseData = {
           type: 'none',
           message: `لم يتم العثور على طالب برقم الجلوس: ${seat}`,
@@ -84,23 +82,91 @@ export async function GET(request: NextRequest) {
 
       const responseData = {
         type: 'single',
-        result: rawResults[0],
+        result: student,
       };
       setCachedResult(cacheKey, responseData);
       return NextResponse.json(responseData);
 
     } else {
-      // 3. Smart Multi-token & Compound-aware Search for Name
+      // 3. Flexible Multi-Token Name Search (searches first name, father name, family name)
       const normalizedQuery = normalizeArabic(query);
-      const firstWord = normalizedQuery.split(' ')[0] || '';
-      const { sqlWhere, params } = buildArabicSearchClauses(query);
+      const tokens = normalizedQuery.split(' ').filter(Boolean);
 
-      // Get total count of matching students
-      const countSql = `SELECT COUNT(*) as count FROM results WHERE ${sqlWhere}`;
-      const countResult = await db.$queryRawUnsafe<Array<{ count: number }>>(countSql, ...params);
-      const totalCount = countResult[0]?.count || 0;
+      if (tokens.length === 0) {
+        return NextResponse.json({ type: 'none', message: 'يرجى إدخال كلمة بحث صحيحة' });
+      }
 
-      if (totalCount === 0) {
+      // Build AND conditions for all search tokens
+      const conditions: any[] = [];
+      let i = 0;
+      while (i < tokens.length) {
+        const token = tokens[i];
+        if (token === 'عبد' && i + 1 < tokens.length) {
+          const nextToken = tokens[i + 1];
+          conditions.push({
+            OR: [
+              { normalizedName: { contains: `عبد${nextToken}` } },
+              { normalizedName: { contains: `عبد ${nextToken}` } },
+            ],
+          });
+          i += 2;
+        } else if (token === 'ابو' && i + 1 < tokens.length) {
+          const nextToken = tokens[i + 1];
+          conditions.push({
+            OR: [
+              { normalizedName: { contains: `ابو${nextToken}` } },
+              { normalizedName: { contains: `ابو ${nextToken}` } },
+            ],
+          });
+          i += 2;
+        } else {
+          conditions.push({
+            normalizedName: { contains: token },
+          });
+          i += 1;
+        }
+      }
+
+      // Query database for count and matching records
+      let totalCount = await db.studentResult.count({
+        where: { AND: conditions },
+      });
+
+      let students = await db.studentResult.findMany({
+        where: { AND: conditions },
+        select: {
+          id: true,
+          name: true,
+          seatNumber: true,
+          result: true,
+          percentage: true,
+          normalizedName: true,
+        },
+        take: 100,
+      });
+
+      // If no exact match across all tokens, fallback to matching first 2 tokens
+      if (students.length === 0 && conditions.length > 1) {
+        const fallbackConditions = conditions.slice(0, 2);
+        totalCount = await db.studentResult.count({
+          where: { AND: fallbackConditions },
+        });
+
+        students = await db.studentResult.findMany({
+          where: { AND: fallbackConditions },
+          select: {
+            id: true,
+            name: true,
+            seatNumber: true,
+            result: true,
+            percentage: true,
+            normalizedName: true,
+          },
+          take: 100,
+        });
+      }
+
+      if (students.length === 0) {
         const responseData = {
           type: 'none',
           message: `لم يتم العثور على نتائج تطابق: "${query}"`,
@@ -109,39 +175,33 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(responseData);
       }
 
-      // Fetch top 50 matches ranked by prefix relevance
-      const searchSql = `
-        SELECT id, name, seat_number as seatNumber, result, percentage 
-        FROM results 
-        WHERE ${sqlWhere} 
-        ORDER BY 
-          CASE 
-            WHEN normalized_name LIKE ? THEN 1
-            WHEN normalized_name LIKE ? THEN 2
-            ELSE 3
-          END,
-          CAST(seat_number AS INTEGER) ASC
-        LIMIT 50
-      `;
+      // Relevance ranking: prefix matches first, then exact sequence matches, then others
+      const firstToken = tokens[0] || '';
+      const formattedStudents = students
+        .map(s => {
+          let rank = 3;
+          if (s.normalizedName.startsWith(normalizedQuery)) {
+            rank = 1;
+          } else if (s.normalizedName.startsWith(firstToken)) {
+            rank = 2;
+          }
+          return {
+            id: s.id,
+            name: s.name,
+            seatNumber: s.seatNumber,
+            result: s.result,
+            percentage: s.percentage,
+            rank,
+          };
+        })
+        .sort((a, b) => a.rank - b.rank || Number(a.seatNumber) - Number(b.seatNumber))
+        .slice(0, 50)
+        .map(({ rank, ...rest }) => rest);
 
-      const queryParams = [
-        `${normalizedQuery}%`,
-        `${firstWord}%`,
-        ...params
-      ];
-
-      const students = await db.$queryRawUnsafe<Array<{
-        id: string;
-        name: string;
-        seatNumber: string;
-        result: string;
-        percentage: number;
-      }>>(searchSql, ...queryParams);
-
-      if (students.length === 1 && totalCount === 1) {
+      if (formattedStudents.length === 1 && totalCount === 1) {
         const responseData = {
           type: 'single',
-          result: students[0],
+          result: formattedStudents[0],
         };
         setCachedResult(cacheKey, responseData);
         return NextResponse.json(responseData);
@@ -149,7 +209,7 @@ export async function GET(request: NextRequest) {
 
       const responseData = {
         type: 'multiple',
-        results: students,
+        results: formattedStudents,
         count: totalCount,
       };
       setCachedResult(cacheKey, responseData);
