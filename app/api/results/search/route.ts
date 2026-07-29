@@ -19,6 +19,15 @@ function setCachedResult(key: string, data: any) {
   searchCache.set(key, data);
 }
 
+function jsonResponse(data: any, status = 200) {
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+    },
+  });
+}
+
 function getRangeUpperBound(term: string): string {
   if (!term) return '';
   const lastChar = term.slice(-1);
@@ -58,7 +67,7 @@ export async function GET(request: NextRequest) {
     const cacheKey = query.toLowerCase();
     const cached = getCachedResult(cacheKey);
     if (cached) {
-      return NextResponse.json(cached);
+      return jsonResponse(cached);
     }
 
     const isSeat = isSeatNumber(query);
@@ -84,7 +93,7 @@ export async function GET(request: NextRequest) {
           message: `لم يتم العثور على طالب برقم الجلوس: ${seat}`,
         };
         setCachedResult(cacheKey, responseData);
-        return NextResponse.json(responseData);
+        return jsonResponse(responseData);
       }
 
       // Calculate national rank
@@ -100,7 +109,7 @@ export async function GET(request: NextRequest) {
         },
       };
       setCachedResult(cacheKey, responseData);
-      return NextResponse.json(responseData);
+      return jsonResponse(responseData);
 
     } else {
       // 3. Fast Student-Name Focused Search (Prioritizes student's name / first name)
@@ -108,7 +117,7 @@ export async function GET(request: NextRequest) {
       const tokens = normalizedQuery.split(' ').filter(Boolean);
 
       if (tokens.length === 0) {
-        return NextResponse.json({ type: 'none', message: 'يرجى إدخال كلمة بحث صحيحة' });
+        return jsonResponse({ type: 'none', message: 'يرجى إدخال كلمة بحث صحيحة' });
       }
 
       const firstWord = tokens[0];
@@ -218,7 +227,7 @@ export async function GET(request: NextRequest) {
           message: `لم يتم العثور على نتائج تطابق: "${query}"`,
         };
         setCachedResult(cacheKey, responseData);
-        return NextResponse.json(responseData);
+        return jsonResponse(responseData);
       }
 
       if (students.length === 1) {
@@ -235,7 +244,7 @@ export async function GET(request: NextRequest) {
           },
         };
         setCachedResult(cacheKey, responseData);
-        return NextResponse.json(responseData);
+        return jsonResponse(responseData);
       }
 
       const responseData = {
@@ -244,7 +253,7 @@ export async function GET(request: NextRequest) {
         count: students.length,
       };
       setCachedResult(cacheKey, responseData);
-      return NextResponse.json(responseData);
+      return jsonResponse(responseData);
     }
   } catch (error) {
     console.error('Search API error:', error);
