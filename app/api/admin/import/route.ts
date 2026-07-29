@@ -35,8 +35,9 @@ export async function POST(request: NextRequest) {
         await db.$executeRawUnsafe(`DELETE FROM results`).catch(() => {});
       }
 
-      // 2. Prepare db records with normalizedName
+      // 2. Prepare db records with normalizedName and explicit ID
       const preparedRecords = records.map(r => ({
+        id: Math.random().toString(36).substring(2) + Date.now().toString(36),
         name: r.name,
         normalizedName: normalizeArabic(r.name),
         seatNumber: String(r.seatNumber).trim(),
@@ -44,28 +45,30 @@ export async function POST(request: NextRequest) {
         percentage: Number(r.percentage || 0),
       }));
 
-      // 3. Insert chunk in sub-batches of 200 for SQLite optimization
-      const chunkSize = 200;
-      for (let i = 0; i < preparedRecords.length; i += chunkSize) {
-        const chunk = preparedRecords.slice(i, i + chunkSize);
-        try {
-          await db.studentResult.createMany({
-            data: chunk,
-          });
-        } catch {
-          // Fallback SQL insert with randomUUID if Prisma auto-uuid varies
-          for (const item of chunk) {
-            const uuid = Math.random().toString(36).substring(2) + Date.now().toString(36);
-            await db.$executeRaw`INSERT INTO results (id, name, normalized_name, seat_number, result, percentage) VALUES (${uuid}, ${item.name}, ${item.normalizedName}, ${item.seatNumber}, ${item.result}, ${item.percentage})`.catch(() => {});
-          }
+      // 3. Fast multi-row SQL insertion within a single database transaction (up to 500 rows per SQL statement)
+      const chunkSize = 500;
+      await db.$transaction(async (tx) => {
+        for (let i = 0; i < preparedRecords.length; i += chunkSize) {
+          const chunk = preparedRecords.slice(i, i + chunkSize);
+          const valueClauses = chunk.map(() => `(?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).join(', ');
+          const params = chunk.flatMap(item => [
+            item.id,
+            item.name,
+            item.normalizedName,
+            item.seatNumber,
+            item.result,
+            item.percentage,
+          ]);
+
+          const sql = `INSERT INTO results (id, name, normalized_name, seat_number, result, percentage, created_at, updated_at) VALUES ${valueClauses}`;
+          await tx.$executeRawUnsafe(sql, ...params);
         }
-      }
+      });
 
       // 4. Update System Stats metadata on final batch
       if (isLastBatch) {
         await db.$executeRaw`INSERT INTO system_stats (id, last_imported_file, last_import_date) VALUES ('singleton', ${fileName || 'file.xlsx'}, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET last_imported_file = ${fileName || 'file.xlsx'}, last_import_date = CURRENT_TIMESTAMP`.catch(() => {});
       }
-
 
       return NextResponse.json({
         success: true,

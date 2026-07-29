@@ -18,6 +18,9 @@ export function normalizeArabic(text: string): string {
 
   let normalized = text.toString();
 
+  // Strip UTF-8 BOM, zero-width spaces, and non-printable characters
+  normalized = normalized.replace(/[\uFEFF\uFFFE\u200B-\u200D]/g, '');
+
   // Convert Eastern Arabic numerals to Western
   normalized = parseArabicNumerals(normalized);
 
