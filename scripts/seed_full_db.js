@@ -3,14 +3,7 @@ const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = path.join(__dirname, '..', 'prisma', 'dev.db');
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: `file:${dbPath}`,
-    },
-  },
-});
+const prisma = new PrismaClient();
 
 function parseArabicNumerals(str) {
   const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
