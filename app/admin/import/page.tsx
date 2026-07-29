@@ -4,6 +4,7 @@ import { useState } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle, Loader2, ArrowRight, RefreshCw, Database } from 'lucide-react';
 import Link from 'next/link';
+import { parseExcelBuffer } from '@/lib/excel';
 
 interface ValidationResult {
   fileName: string;
@@ -28,6 +29,7 @@ export default function ExcelImportPage() {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [importMode, setImportMode] = useState<'replace' | 'append'>('replace');
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; percent: number } | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -35,6 +37,7 @@ export default function ExcelImportPage() {
       setValidationResult(null);
       setErrorMsg(null);
       setImportSuccessMsg(null);
+      setImportProgress(null);
     }
   };
 
@@ -44,26 +47,25 @@ export default function ExcelImportPage() {
     setErrorMsg(null);
     setValidationResult(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const res = await fetch('/api/admin/import', {
-        method: 'POST',
-        body: formData,
+      // 1. Read file in browser as ArrayBuffer (0 server upload limit!)
+      const arrayBuffer = await file.arrayBuffer();
+
+      // 2. Parse Excel buffer directly in client JS
+      const result = parseExcelBuffer(arrayBuffer);
+
+      setValidationResult({
+        fileName: file.name,
+        totalRows: result.totalRows,
+        validCount: result.validRecords.length,
+        invalidCount: result.invalidRows.length,
+        detectedColumns: result.detectedColumns,
+        validRecords: result.validRecords,
+        invalidRows: result.invalidRows.slice(0, 100),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setErrorMsg(data.error || 'فشلت معالجة ملف الإكسل');
-        return;
-      }
-
-      setValidationResult(data);
     } catch (err) {
       console.error('Analyze error:', err);
-      setErrorMsg('حدث خطأ أثناء رفع الملف');
+      setErrorMsg('تعذر قراءة ملف الإكسل. يرجى التأكد من صحة الملف وصيغته');
     } finally {
       setIsAnalyzing(false);
     }
@@ -73,34 +75,55 @@ export default function ExcelImportPage() {
     if (!validationResult || validationResult.validRecords.length === 0) return;
     setIsImporting(true);
     setErrorMsg(null);
+    setImportProgress({ current: 0, total: validationResult.validCount, percent: 0 });
 
     try {
-      const res = await fetch('/api/admin/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          confirm: true,
-          records: validationResult.validRecords,
-          mode: importMode,
-          fileName: validationResult.fileName,
-        }),
-      });
+      const records = validationResult.validRecords;
+      const totalCount = records.length;
+      const BATCH_SIZE = 2000; // 2,000 records per batch (~150KB per request)
+      let importedSoFar = 0;
 
-      const data = await res.json();
+      for (let i = 0; i < totalCount; i += BATCH_SIZE) {
+        const chunk = records.slice(i, i + BATCH_SIZE);
+        const isFirstBatch = i === 0;
+        const isLastBatch = i + BATCH_SIZE >= totalCount;
 
-      if (!res.ok) {
-        setErrorMsg(data.error || 'فشل حفظ البيانات في قاعدة البيانات');
-        return;
+        const res = await fetch('/api/admin/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            records: chunk,
+            mode: importMode,
+            fileName: validationResult.fileName,
+            isFirstBatch,
+            isLastBatch,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'حدث خطأ أثناء حفظ أحد الأجزاء');
+        }
+
+        importedSoFar += chunk.length;
+        const percent = Math.min(100, Math.round((importedSoFar / totalCount) * 100));
+        setImportProgress({
+          current: importedSoFar,
+          total: totalCount,
+          percent,
+        });
       }
 
-      setImportSuccessMsg(data.message || 'تم استيراد البيانات بنجاح!');
+      setImportSuccessMsg(`تم استيراد كافة النتائج بنجاح (${totalCount.toLocaleString('ar-EG')} طالب)!`);
       setValidationResult(null);
       setFile(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Confirm import error:', err);
-      setErrorMsg('حدث خطأ أثناء حفظ البيانات');
+      setErrorMsg(err.message || 'حدث خطأ أثناء رفع البيانات إلى السيرفر');
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -114,7 +137,7 @@ export default function ExcelImportPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">استيراد نتائج من Excel</h1>
             <p className="text-xs text-slate-400 mt-1">
-              قم برفع ملف Excel لادراج النتائج فورياً في قاعدة البيانات
+              قم برفع ملف Excel لإدراج النتائج فورياً في قاعدة البيانات
             </p>
           </div>
 
@@ -161,7 +184,7 @@ export default function ExcelImportPage() {
 
               <div className="space-y-1">
                 <h3 className="text-base font-bold text-white">اختر ملف Excel من جهازك</h3>
-                <p className="text-xs text-slate-400">يدعم صيغ .xlsx و .xls و .csv</p>
+                <p className="text-xs text-slate-400">يدعم صيغ .xlsx و .xls و .csv (حتى 900 ألف طالب)</p>
               </div>
 
               <input
@@ -200,7 +223,7 @@ export default function ExcelImportPage() {
               {isAnalyzing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>جاري فحص وقراءة الملف...</span>
+                  <span>جاري فحص وقراءة الملف في المتصفح...</span>
                 </>
               ) : (
                 <span>قراءة وفحص البيانات</span>
@@ -236,15 +259,15 @@ export default function ExcelImportPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
                   <span className="text-xs text-slate-400">إجمالي الصفوف بالملف</span>
-                  <p className="text-2xl font-black text-white font-mono">{validationResult.totalRows}</p>
+                  <p className="text-2xl font-black text-white font-mono">{validationResult.totalRows.toLocaleString('ar-EG')}</p>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
                   <span className="text-xs text-emerald-400 font-semibold">السجلات الصالحة للاستيراد</span>
-                  <p className="text-2xl font-black text-emerald-400 font-mono">{validationResult.validCount}</p>
+                  <p className="text-2xl font-black text-emerald-400 font-mono">{validationResult.validCount.toLocaleString('ar-EG')}</p>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
                   <span className="text-xs text-rose-400 font-semibold">الصفوف غير الصالحة (المرفوضة)</span>
-                  <p className="text-2xl font-black text-rose-400 font-mono">{validationResult.invalidCount}</p>
+                  <p className="text-2xl font-black text-rose-400 font-mono">{validationResult.invalidCount.toLocaleString('ar-EG')}</p>
                 </div>
               </div>
 
@@ -286,6 +309,23 @@ export default function ExcelImportPage() {
                       <span className="font-semibold text-rose-400">{inv.reason}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Live Progress Bar during Batch Upload */}
+            {importProgress && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-brand-400">جاري الرفع المباشر في دفعات صغيرة (لتفادي حد السيرفر)...</span>
+                  <span className="text-white font-mono">{importProgress.current.toLocaleString('ar-EG')} / {importProgress.total.toLocaleString('ar-EG')} ({importProgress.percent}%)</span>
+                </div>
+
+                <div className="w-full bg-slate-950 h-4 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                  <div
+                    className="h-full bg-gradient-to-r from-brand-600 to-emerald-500 rounded-full transition-all duration-300 shadow-md"
+                    style={{ width: `${importProgress.percent}%` }}
+                  />
                 </div>
               </div>
             )}
@@ -335,10 +375,10 @@ export default function ExcelImportPage() {
                 {isImporting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>جاري حفظ البيانات في قاعدة البيانات...</span>
+                    <span>جاري رفع الدفعات... ({importProgress?.percent || 0}%)</span>
                   </>
                 ) : (
-                  <span>تأكيد استيراد ({validationResult.validCount}) نتيجة إلى السيرفر</span>
+                  <span>تأكيد استيراد ({validationResult.validCount.toLocaleString('ar-EG')}) نتيجة إلى السيرفر</span>
                 )}
               </button>
             </div>

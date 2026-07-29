@@ -67,10 +67,12 @@ function parsePercentage(val: unknown): number | null {
 /**
  * Parses buffer of Excel file and validates headers and rows.
  */
-export function parseExcelBuffer(buffer: Buffer): ParseResult {
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
+export function parseExcelBuffer(buffer: Buffer | ArrayBuffer | Uint8Array): ParseResult {
+  const data = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
+  const workbook = XLSX.read(data, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
+
 
   // Convert to JSON objects
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });

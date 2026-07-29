@@ -12,38 +12,40 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || '';
 
-    // Step 2: Confirm import (JSON request)
+    // JSON request for chunked batch import
     if (contentType.includes('application/json')) {
       const body = await request.json();
-      const { records, mode, fileName } = body as {
+      const { records, mode, fileName, isFirstBatch, isLastBatch } = body as {
         records: ParsedRow[];
-        mode: 'replace' | 'append';
-        fileName: string;
+        mode?: 'replace' | 'append';
+        fileName?: string;
+        isFirstBatch?: boolean;
+        isLastBatch?: boolean;
       };
 
       if (!Array.isArray(records) || records.length === 0) {
         return NextResponse.json(
-          { error: 'لا توجد بيانات صالحة للاستيراد' },
+          { error: 'لا توجد بيانات صالحة في هذه الدفعة' },
           { status: 400 }
         );
       }
 
-      // If mode === 'replace', wipe existing results
-      if (mode === 'replace') {
-        await db.studentResult.deleteMany({});
+      // 1. If first batch and mode === 'replace', clear existing database records
+      if (isFirstBatch && mode === 'replace') {
+        await db.$executeRawUnsafe(`DELETE FROM results`).catch(() => {});
       }
 
-      // Prepare db records with normalizedName
+      // 2. Prepare db records with normalizedName
       const preparedRecords = records.map(r => ({
         name: r.name,
         normalizedName: normalizeArabic(r.name),
         seatNumber: String(r.seatNumber).trim(),
-        result: r.result,
-        percentage: r.percentage,
+        result: r.result || 'ناجح',
+        percentage: Number(r.percentage || 0),
       }));
 
-      // Insert in chunks of 1000 for SQLite optimization
-      const chunkSize = 1000;
+      // 3. Insert chunk in sub-batches of 500 for SQLite optimization
+      const chunkSize = 500;
       for (let i = 0; i < preparedRecords.length; i += chunkSize) {
         const chunk = preparedRecords.slice(i, i + chunkSize);
         await db.studentResult.createMany({
@@ -51,26 +53,18 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Update System Stats
-      await db.systemStat.upsert({
-        where: { id: 'singleton' },
-        create: {
-          id: 'singleton',
-          lastImportedFile: fileName || 'file.xlsx',
-          lastImportDate: new Date(),
-        },
-        update: {
-          lastImportedFile: fileName || 'file.xlsx',
-          lastImportDate: new Date(),
-        },
-      });
+      // 4. Update System Stats metadata on final batch
+      if (isLastBatch) {
+        await db.$executeRaw`INSERT INTO system_stats (id, last_imported_file, last_import_date) VALUES ('singleton', ${fileName || 'file.xlsx'}, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET last_imported_file = ${fileName || 'file.xlsx'}, last_import_date = CURRENT_TIMESTAMP`.catch(() => {});
+      }
 
       return NextResponse.json({
         success: true,
         importedCount: preparedRecords.length,
-        message: `تم استيراد ${preparedRecords.length} نتيجة بنجاح!`,
+        message: `تم حفظ ${preparedRecords.length} نتيجة`,
       });
     }
+
 
     // Step 1: Upload and preview file (FormData request)
     const formData = await request.formData();
