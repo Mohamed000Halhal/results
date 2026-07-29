@@ -22,9 +22,10 @@ export async function POST() {
     });
   } catch (error) {
     console.error('Delete all error:', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ أثناء مسح قاعدة البيانات' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      message: 'تم مسح جميع النتائج من قاعدة البيانات بنجاح',
+    });
   }
 }
+

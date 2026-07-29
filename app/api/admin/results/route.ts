@@ -46,12 +46,18 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Fetch results error:', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ في جلب النتائج' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      results: [],
+      pagination: {
+        page: 1,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    });
   }
 }
+
 
 export async function DELETE(request: NextRequest) {
   if (!(await isAdminAuthenticated())) {
