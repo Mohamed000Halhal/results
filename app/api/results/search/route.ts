@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { isSeatNumber, normalizeArabic, parseArabicNumerals } from '@/lib/arabic';
 import { checkRateLimit } from '@/lib/rateLimit';
 
-// Ultra-fast In-memory LRU Cache for 0ms responses
+// Ultra-fast In-memory LRU Cache for 0ms instant responses
 const searchCache = new Map<string, any>();
 const MAX_CACHE_SIZE = 10000;
 
@@ -17,6 +17,13 @@ function setCachedResult(key: string, data: any) {
     if (firstKey) searchCache.delete(firstKey);
   }
   searchCache.set(key, data);
+}
+
+function getRangeUpperBound(term: string): string {
+  if (!term) return '';
+  const lastChar = term.slice(-1);
+  const nextChar = String.fromCharCode(lastChar.charCodeAt(0) + 1);
+  return term.slice(0, -1) + nextChar;
 }
 
 export async function GET(request: NextRequest) {
@@ -57,7 +64,7 @@ export async function GET(request: NextRequest) {
     const isSeat = isSeatNumber(query);
 
     if (isSeat) {
-      // 2. Exact Index Lookup for Seat Number
+      // 2. Exact B-Tree Index Lookup for Seat Number
       const seat = parseArabicNumerals(query);
       
       const student = await db.studentResult.findFirst({
@@ -88,7 +95,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(responseData);
 
     } else {
-      // 3. Flexible Multi-Token Name Search (searches first name, father name, family name)
+      // 3. Fast Student-Name Focused Search (Prioritizes student's name / first name)
       const normalizedQuery = normalizeArabic(query);
       const tokens = normalizedQuery.split(' ').filter(Boolean);
 
@@ -96,73 +103,104 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ type: 'none', message: 'يرجى إدخال كلمة بحث صحيحة' });
       }
 
-      // Build AND conditions for all search tokens
-      const conditions: any[] = [];
-      let i = 0;
-      while (i < tokens.length) {
-        const token = tokens[i];
-        if (token === 'عبد' && i + 1 < tokens.length) {
-          const nextToken = tokens[i + 1];
-          conditions.push({
-            OR: [
-              { normalizedName: { contains: `عبد${nextToken}` } },
-              { normalizedName: { contains: `عبد ${nextToken}` } },
-            ],
-          });
-          i += 2;
-        } else if (token === 'ابو' && i + 1 < tokens.length) {
-          const nextToken = tokens[i + 1];
-          conditions.push({
-            OR: [
-              { normalizedName: { contains: `ابو${nextToken}` } },
-              { normalizedName: { contains: `ابو ${nextToken}` } },
-            ],
-          });
-          i += 2;
-        } else {
-          conditions.push({
-            normalizedName: { contains: token },
-          });
-          i += 1;
-        }
-      }
+      const firstWord = tokens[0];
+      const rangeUpper = getRangeUpperBound(normalizedQuery);
 
-      // Query database for count and matching records
-      let totalCount = await db.studentResult.count({
-        where: { AND: conditions },
-      });
-
+      // Phase 1: Fast B-Tree Index Range Search (Student's name starts with full query)
       let students = await db.studentResult.findMany({
-        where: { AND: conditions },
+        where: {
+          normalizedName: {
+            gte: normalizedQuery,
+            lt: rangeUpper,
+          },
+        },
         select: {
           id: true,
           name: true,
           seatNumber: true,
           result: true,
           percentage: true,
-          normalizedName: true,
         },
-        take: 100,
+        take: 50,
       });
 
-      // If no exact match across all tokens, fallback to matching first 2 tokens
-      if (students.length === 0 && conditions.length > 1) {
-        const fallbackConditions = conditions.slice(0, 2);
-        totalCount = await db.studentResult.count({
-          where: { AND: fallbackConditions },
-        });
+      // Phase 2: If < 30 results and multi-word query, search for student's first name starting with firstWord + remaining words anywhere
+      if (students.length < 30 && tokens.length > 1) {
+        const firstWordUpper = getRangeUpperBound(firstWord);
+        const existingIds = new Set(students.map(s => s.id));
+        const otherTokens = tokens.slice(1);
 
-        students = await db.studentResult.findMany({
-          where: { AND: fallbackConditions },
+        const phase2Students = await db.studentResult.findMany({
+          where: {
+            normalizedName: {
+              gte: firstWord,
+              lt: firstWordUpper,
+            },
+            AND: otherTokens.map(t => ({
+              normalizedName: { contains: t },
+            })),
+          },
           select: {
             id: true,
             name: true,
             seatNumber: true,
             result: true,
             percentage: true,
-            normalizedName: true,
           },
-          take: 100,
+          take: 50,
+        });
+
+        for (const s of phase2Students) {
+          if (!existingIds.has(s.id)) {
+            students.push(s);
+            existingIds.add(s.id);
+            if (students.length >= 50) break;
+          }
+        }
+      }
+
+      // Phase 3: Fallback if still 0 results (contains tokens anywhere)
+      if (students.length === 0) {
+        const conditions: any[] = [];
+        let i = 0;
+        while (i < tokens.length) {
+          const token = tokens[i];
+          if (token === 'عبد' && i + 1 < tokens.length) {
+            const nextToken = tokens[i + 1];
+            conditions.push({
+              OR: [
+                { normalizedName: { contains: `عبد${nextToken}` } },
+                { normalizedName: { contains: `عبد ${nextToken}` } },
+              ],
+            });
+            i += 2;
+          } else if (token === 'ابو' && i + 1 < tokens.length) {
+            const nextToken = tokens[i + 1];
+            conditions.push({
+              OR: [
+                { normalizedName: { contains: `ابو${nextToken}` } },
+                { normalizedName: { contains: `ابو ${nextToken}` } },
+              ],
+            });
+            i += 2;
+          } else {
+            conditions.push({
+              normalizedName: { contains: token },
+            });
+            i += 1;
+          }
+        }
+
+        students = await db.studentResult.findMany({
+          where: { AND: conditions },
+          select: {
+            id: true,
+            name: true,
+            seatNumber: true,
+            result: true,
+            percentage: true,
+          },
+          take: 50,
         });
       }
 
@@ -175,33 +213,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(responseData);
       }
 
-      // Relevance ranking: prefix matches first, then exact sequence matches, then others
-      const firstToken = tokens[0] || '';
-      const formattedStudents = students
-        .map(s => {
-          let rank = 3;
-          if (s.normalizedName.startsWith(normalizedQuery)) {
-            rank = 1;
-          } else if (s.normalizedName.startsWith(firstToken)) {
-            rank = 2;
-          }
-          return {
-            id: s.id,
-            name: s.name,
-            seatNumber: s.seatNumber,
-            result: s.result,
-            percentage: s.percentage,
-            rank,
-          };
-        })
-        .sort((a, b) => a.rank - b.rank || Number(a.seatNumber) - Number(b.seatNumber))
-        .slice(0, 50)
-        .map(({ rank, ...rest }) => rest);
-
-      if (formattedStudents.length === 1 && totalCount === 1) {
+      if (students.length === 1) {
         const responseData = {
           type: 'single',
-          result: formattedStudents[0],
+          result: students[0],
         };
         setCachedResult(cacheKey, responseData);
         return NextResponse.json(responseData);
@@ -209,8 +224,8 @@ export async function GET(request: NextRequest) {
 
       const responseData = {
         type: 'multiple',
-        results: formattedStudents,
-        count: totalCount,
+        results: students,
+        count: students.length,
       };
       setCachedResult(cacheKey, responseData);
       return NextResponse.json(responseData);
@@ -223,5 +238,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-
