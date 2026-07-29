@@ -126,10 +126,10 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
           <div className="relative overflow-hidden bg-gradient-to-b from-[#faf6f0] to-[#f5ebd9] border border-amber-200/80 p-6 rounded-2xl text-center space-y-4 shadow-inner">
             <div className="flex items-center justify-center gap-2 text-xs font-bold text-stone-600 uppercase tracking-wider">
               <Percent className="w-4 h-4 text-brand-600" />
-              <span>النسبة المئوية الإجمالية</span>
+              <span>النسبة المئوية ومجموع الدرجات</span>
             </div>
 
-            <div className="flex items-baseline justify-center gap-1">
+            <div className="flex flex-col items-center justify-center gap-2">
               <span
                 className={`text-5xl sm:text-6xl font-black tracking-tight font-mono ${
                   isPassed
@@ -139,6 +139,12 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
               >
                 {student.percentage}%
               </span>
+
+              <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-100/80 border border-amber-200 text-stone-800 font-bold text-sm">
+                <span>الدرجة:</span>
+                <span className="font-mono text-brand-900 text-base">{(Math.round(student.percentage * 4.1 * 10) / 10)}</span>
+                <span className="text-xs text-stone-500">من 410</span>
+              </div>
             </div>
 
             {/* Glowing Animated Progress Bar */}
@@ -248,8 +254,8 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
                 </span>
               </div>
               <div>
-                <span className="font-bold text-slate-600">النسبة المئوية الإجمالية: </span>
-                <span className="font-black text-slate-900 font-mono text-lg">{student.percentage}%</span>
+                <span className="font-bold text-slate-600">المجموع والنسبة المئوية: </span>
+                <span className="font-black text-slate-900 font-mono text-base">{student.percentage}% ({(Math.round(student.percentage * 4.1 * 10) / 10)} من 410)</span>
               </div>
             </div>
           </div>
