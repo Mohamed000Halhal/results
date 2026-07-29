@@ -23,18 +23,19 @@ export async function GET() {
 
     const failedStudents = totalStudents - passedStudents;
 
-    const sysStat = await db.systemStat.findUnique({
-      where: { id: 'singleton' },
-    });
+    const rows: any = await db.$queryRaw`SELECT visitor_count, last_imported_file, last_import_date FROM system_stats WHERE id = 'singleton'`;
+    const sysStat = rows && rows[0] ? rows[0] : null;
 
     return NextResponse.json({
       totalStudents,
       passedStudents,
       failedStudents,
       passedPercentage: totalStudents > 0 ? Math.round((passedStudents / totalStudents) * 1000) / 10 : 0,
-      lastImportDate: sysStat?.lastImportDate || null,
-      lastImportedFile: sysStat?.lastImportedFile || null,
+      visitorCount: sysStat ? Number(sysStat.visitor_count || 0) : 0,
+      lastImportDate: sysStat?.last_import_date || null,
+      lastImportedFile: sysStat?.last_imported_file || null,
     });
+
   } catch (error) {
     console.error('Stats API error:', error);
     return NextResponse.json({ error: 'حدث خطأ في جلب البيانات' }, { status: 500 });

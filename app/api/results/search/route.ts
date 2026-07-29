@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { isSeatNumber, normalizeArabic, parseArabicNumerals } from '@/lib/arabic';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 // Ultra-fast In-memory LRU Cache for 0ms responses
 const searchCache = new Map<string, any>();
@@ -28,16 +29,26 @@ function getRangeBounds(term: string) {
 }
 
 export async function GET(request: NextRequest) {
+  // Rate limiting: 60 requests per minute per IP
+  const rate = checkRateLimit(request, 60, 60 * 1000);
+  if (!rate.success) {
+    return NextResponse.json(
+      { error: 'تجاوزت عدد محاولات البحث المسموح بها مؤقتاً. يرجى الانتظار بضع ثوانٍ' },
+      { status: 429 }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q')?.trim();
 
-    if (!query) {
+    if (!query || query.length > 100) {
       return NextResponse.json(
-        { error: 'يرجى إدخال رقم الجلوس أو اسم الطالب' },
+        { error: 'يرجى إدخال رقم الجلوس أو اسم الطالب بشكل صحيح' },
         { status: 400 }
       );
     }
+
 
     if (query.length < 2 && !isSeatNumber(query)) {
       return NextResponse.json(

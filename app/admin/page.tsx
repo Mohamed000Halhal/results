@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Users, CheckCircle, XCircle, FileSpreadsheet, Calendar, HardDrive, ArrowLeft, ArrowRight, Loader2, Table } from 'lucide-react';
+import { Users, CheckCircle, XCircle, FileSpreadsheet, Calendar, HardDrive, ArrowLeft, ArrowRight, Loader2, Table, Eye } from 'lucide-react';
+
 import Link from 'next/link';
 
 interface StatsData {
@@ -11,9 +12,11 @@ interface StatsData {
   passedStudents: number;
   failedStudents: number;
   passedPercentage: number;
+  visitorCount: number;
   lastImportDate: string | null;
   lastImportedFile: string | null;
 }
+
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
@@ -75,7 +78,21 @@ export default function AdminDashboardPage() {
         ) : stats ? (
           <>
             {/* KPI Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Total Unique Visitors */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400">إجمالي زوار الموقع</span>
+                  <div className="p-2 bg-sky-500/10 text-sky-400 rounded-lg">
+                    <Eye className="w-5 h-5" />
+                  </div>
+                </div>
+                <p className="text-3xl font-black text-sky-400 font-mono">
+                  {stats.visitorCount ? stats.visitorCount.toLocaleString('ar-EG') : 0}
+                </p>
+                <p className="text-xs text-slate-500">زائر فريد (بدون تكرار)</p>
+              </div>
+
               {/* Total Students */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
@@ -89,6 +106,7 @@ export default function AdminDashboardPage() {
                 </p>
                 <p className="text-xs text-slate-500">طالب في قاعدة البيانات</p>
               </div>
+
 
               {/* Passed Students */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
