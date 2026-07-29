@@ -11,6 +11,7 @@ export interface StudentResultData {
   seatNumber: string;
   result: string;
   percentage: number;
+  rank?: number;
 }
 
 interface ResultCardProps {
@@ -31,7 +32,7 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
   };
 
   const handleCopy = async () => {
-    const text = `نتيجة الطالب: ${student.name}\nرقم الجلوس: ${student.seatNumber}\nالنسبة المئوية: ${student.percentage}%\nالنتيجة: ${student.result}`;
+    const text = `نتيجة الطالب: ${student.name}\nرقم الجلوس: ${student.seatNumber}\nالنسبة المئوية: ${student.percentage}%\nالدرجة: ${Math.round(student.percentage * 4.1 * 10) / 10} من 410\nالترتيب على الجمهورية: #${student.rank ? student.rank.toLocaleString('ar-EG') : '-'}\nالنتيجة: ${student.result}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -98,14 +99,14 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
           </div>
 
           {/* Student Information Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Student Name */}
             <div className="bg-[#faf6f0] p-4 rounded-2xl border border-amber-200/70 space-y-1">
               <div className="flex items-center gap-2 text-xs font-bold text-stone-500">
                 <User className="w-4 h-4 text-brand-600" />
                 <span>اسم الطالب:</span>
               </div>
-              <p className="text-lg font-bold text-stone-900 tracking-wide pr-1">
+              <p className="text-base font-bold text-stone-900 tracking-wide pr-1">
                 {student.name}
               </p>
             </div>
@@ -116,8 +117,19 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
                 <Hash className="w-4 h-4 text-amber-700" />
                 <span>رقم الجلوس:</span>
               </div>
-              <p className="text-lg font-bold text-amber-900 font-mono tracking-widest pr-1">
+              <p className="text-base font-bold text-amber-900 font-mono tracking-widest pr-1">
                 {student.seatNumber}
+              </p>
+            </div>
+
+            {/* National Rank */}
+            <div className="bg-[#faf6f0] p-4 rounded-2xl border border-amber-200/70 space-y-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-stone-500">
+                <Award className="w-4 h-4 text-emerald-600" />
+                <span>الترتيب على الجمهورية:</span>
+              </div>
+              <p className="text-base font-black text-emerald-800 font-mono tracking-wide pr-1">
+                {student.rank ? `#${student.rank.toLocaleString('ar-EG')}` : 'حساب...'}
               </p>
             </div>
           </div>
@@ -246,7 +258,7 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 p-3 bg-white">
+            <div className="grid grid-cols-3 p-3 bg-white text-xs">
               <div>
                 <span className="font-bold text-slate-600">حالة النتيجة: </span>
                 <span className={`font-black ${isPassed ? 'text-emerald-700' : 'text-rose-700'}`}>
@@ -254,8 +266,12 @@ export default function ResultCard({ student, onSearchAgain }: ResultCardProps) 
                 </span>
               </div>
               <div>
-                <span className="font-bold text-slate-600">المجموع والنسبة المئوية: </span>
-                <span className="font-black text-slate-900 font-mono text-base">{student.percentage}% ({(Math.round(student.percentage * 4.1 * 10) / 10)} من 410)</span>
+                <span className="font-bold text-slate-600">المجموع والنسبة: </span>
+                <span className="font-black text-slate-900 font-mono">{student.percentage}% ({(Math.round(student.percentage * 4.1 * 10) / 10)} من 410)</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-600">الترتيب على الجمهورية: </span>
+                <span className="font-black text-emerald-800 font-mono">{student.rank ? `#${student.rank.toLocaleString('ar-EG')}` : '-'}</span>
               </div>
             </div>
           </div>
