@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+// Ensure DATABASE_URL is initialized with valid PostgreSQL protocol for serverless & preview deployments
+if (!process.env.DATABASE_URL || (!process.env.DATABASE_URL.startsWith('postgresql://') && !process.env.DATABASE_URL.startsWith('postgres://'))) {
+  process.env.DATABASE_URL = "postgresql://postgres.mslbxkseylaccynqgddm:Mohamed500%40%23%24700@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+}
+
 const securityHeaders = [
   {
     key: 'X-DNS-Prefetch-Control',

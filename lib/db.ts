@@ -1,10 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+const DEFAULT_SUPABASE_URL = "postgresql://postgres.mslbxkseylaccynqgddm:Mohamed500%40%23%24700@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
-function getDbUrl(): string {
+function cleanDbUrl(): string {
   let envUrl = (process.env.DATABASE_URL || '').trim();
 
   // Strip surrounding quotes if quotes were pasted into environment variables
@@ -19,16 +17,22 @@ function getDbUrl(): string {
     return envUrl;
   }
 
-  // Fallback connection string to ensure Vercel serverless functions never fail
-  return "postgresql://postgres.mslbxkseylaccynqgddm:Mohamed500%40%23%24700@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+  return DEFAULT_SUPABASE_URL;
 }
+
+const resolvedUrl = cleanDbUrl();
+process.env.DATABASE_URL = resolvedUrl;
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
 
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
     datasources: {
       db: {
-        url: getDbUrl(),
+        url: resolvedUrl,
       },
     },
   });
