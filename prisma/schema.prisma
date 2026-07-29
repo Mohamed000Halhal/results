@@ -23,6 +23,7 @@ model StudentResult {
   @@index([seatNumber])
   @@index([name])
   @@index([normalizedName])
+  @@index([percentage])
   @@map("results")
 }
 

@@ -87,9 +87,17 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(responseData);
       }
 
+      // Calculate national rank
+      const higherCount = await db.studentResult.count({
+        where: { percentage: { gt: student.percentage } },
+      }).catch(() => 0);
+
       const responseData = {
         type: 'single',
-        result: student,
+        result: {
+          ...student,
+          rank: higherCount + 1,
+        },
       };
       setCachedResult(cacheKey, responseData);
       return NextResponse.json(responseData);
@@ -214,9 +222,17 @@ export async function GET(request: NextRequest) {
       }
 
       if (students.length === 1) {
+        const target = students[0];
+        const higherCount = await db.studentResult.count({
+          where: { percentage: { gt: target.percentage } },
+        }).catch(() => 0);
+
         const responseData = {
           type: 'single',
-          result: students[0],
+          result: {
+            ...target,
+            rank: higherCount + 1,
+          },
         };
         setCachedResult(cacheKey, responseData);
         return NextResponse.json(responseData);
