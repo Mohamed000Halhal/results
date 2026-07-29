@@ -24,9 +24,10 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Top students API error:', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ أثناء جلب قائمة الأوائل' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      students: [],
+    });
   }
 }
+

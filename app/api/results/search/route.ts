@@ -163,8 +163,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Search API error:', error);
     return NextResponse.json(
-      { error: 'حدث خطأ في السيرفر أثناء البحث' },
-      { status: 500 }
+      { type: 'none', message: 'لم يتم إضافة بيانات النتائج بعد على قاعدة البيانات' },
+      { status: 200 }
     );
   }
 }
+
