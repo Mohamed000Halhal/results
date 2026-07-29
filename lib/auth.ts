@@ -11,10 +11,11 @@ export interface AdminPayload {
 }
 
 /**
- * Sign an admin session token (valid for 24 hours).
+ * Sign an admin session token (valid for 24h or 365 days if rememberMe is true).
  */
-export function createAdminToken(): string {
-  return jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+export function createAdminToken(rememberMe: boolean = false): string {
+  const expiresIn = rememberMe ? '365d' : '24h';
+  return jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn });
 }
 
 /**

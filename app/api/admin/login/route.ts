@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { password } = body;
+    const { password, rememberMe } = body;
 
     if (!password || typeof password !== 'string' || password.length > 100) {
       return NextResponse.json(
@@ -30,13 +30,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-
-    const token = createAdminToken();
+    const isRemember = Boolean(rememberMe);
+    const token = createAdminToken(isRemember);
 
     const response = NextResponse.json({
       success: true,
       message: 'تم تسجيل الدخول بنجاح',
     });
+
+    const maxAge = isRemember ? 60 * 60 * 24 * 365 : 60 * 60 * 24; // 1 year if remember, else 24 hours
 
     response.cookies.set({
       name: COOKIE_NAME,
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge,
     });
 
     return response;

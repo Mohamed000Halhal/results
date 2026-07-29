@@ -1,15 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck, Lock, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const router = useRouter();
+
+  // Load saved password and remember preference if present
+  useEffect(() => {
+    try {
+      const savedRemember = localStorage.getItem('admin_remember_choice');
+      const savedPassword = localStorage.getItem('admin_remembered_password');
+      if (savedRemember !== null) {
+        setRememberMe(savedRemember === 'true');
+      }
+      if (savedPassword) {
+        setPassword(savedPassword);
+      }
+    } catch (e) {
+      console.error('Failed to load remembered credentials:', e);
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +37,7 @@ export default function LoginPage() {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, rememberMe }),
       });
 
       const data = await res.json();
@@ -28,6 +45,19 @@ export default function LoginPage() {
       if (!res.ok) {
         setErrorMsg(data.error || 'كلمة المرور غير صحيحة');
         return;
+      }
+
+      // Handle local storage for remember me option
+      try {
+        if (rememberMe) {
+          localStorage.setItem('admin_remembered_password', password);
+          localStorage.setItem('admin_remember_choice', 'true');
+        } else {
+          localStorage.removeItem('admin_remembered_password');
+          localStorage.setItem('admin_remember_choice', 'false');
+        }
+      } catch (e) {
+        console.error('Failed to save remember credentials:', e);
       }
 
       router.push('/admin');
@@ -42,7 +72,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#fbf8f3] text-stone-900 flex flex-col items-center justify-center p-4 selection:bg-brand-600 selection:text-white">
-      <div className="w-full max-w-md bg-white/95 border border-amber-200/90 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+      <div className="w-full max-w-md bg-white border border-amber-200/90 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
         
         {/* Header */}
         <div className="text-center space-y-2">
@@ -78,6 +108,19 @@ export default function LoginPage() {
                 required
               />
             </div>
+          </div>
+
+          {/* Remember Me Checkbox */}
+          <div className="flex items-center justify-between pt-1">
+            <label className="flex items-center gap-2.5 text-xs font-bold text-stone-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-amber-300 text-brand-700 focus:ring-brand-600 accent-brand-700 cursor-pointer"
+              />
+              <span>تذكرني دائمًا</span>
+            </label>
           </div>
 
           <button
