@@ -35,18 +35,26 @@ export async function POST(request: NextRequest) {
         await db.studentResult.deleteMany({}).catch(() => {});
       }
 
-      // 2. Prepare db records with normalizedName and explicit ID
-      const preparedRecords = records.map(r => ({
-        id: Math.random().toString(36).substring(2) + Date.now().toString(36),
-        name: r.name,
-        normalizedName: normalizeArabic(r.name),
-        seatNumber: String(r.seatNumber).trim(),
-        result: r.result || 'ناجح',
-        percentage: Number(r.percentage || 0),
-      }));
+      // 2. Prepare db records with normalizedName
+      const preparedRecords = records
+        .filter(r => r && r.name && r.seatNumber)
+        .map(r => ({
+          name: String(r.name).trim(),
+          normalizedName: normalizeArabic(String(r.name)),
+          seatNumber: String(r.seatNumber).trim(),
+          result: String(r.result || 'ناجح').trim(),
+          percentage: Number(r.percentage || 0),
+        }));
+
+      if (preparedRecords.length === 0) {
+        return NextResponse.json(
+          { error: 'لا توجد بيانات صالحة في هذه الدفعة' },
+          { status: 400 }
+        );
+      }
 
       // 3. Fast multi-row insertion using Prisma createMany (works across PostgreSQL and all DBs)
-      const chunkSize = 2000;
+      const chunkSize = 1000;
       for (let i = 0; i < preparedRecords.length; i += chunkSize) {
         const chunk = preparedRecords.slice(i, i + chunkSize);
         await db.studentResult.createMany({ data: chunk });
@@ -102,10 +110,10 @@ export async function POST(request: NextRequest) {
       validRecords: parseResult.validRecords,
       invalidRows: parseResult.invalidRows.slice(0, 100), // Cap invalid preview at 100
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Import error:', error);
     return NextResponse.json(
-      { error: 'حدث خطأ في معالجة ملف الإكسل' },
+      { error: error?.message || 'حدث خطأ في معالجة ملف الإكسل' },
       { status: 500 }
     );
   }

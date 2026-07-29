@@ -60,6 +60,87 @@ export async function GET(request: NextRequest) {
 
 
 
+export async function POST(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { name, seatNumber, result, percentage } = body;
+
+    if (!name || !seatNumber) {
+      return NextResponse.json(
+        { error: 'الاسم ورقم الجلوس مطلوبان' },
+        { status: 400 }
+      );
+    }
+
+    const newStudent = await db.studentResult.create({
+      data: {
+        name: String(name).trim(),
+        normalizedName: normalizeArabic(String(name)),
+        seatNumber: String(seatNumber).trim(),
+        result: String(result || 'ناجح').trim(),
+        percentage: Number(percentage || 0),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'تم إضافة الطالب بنجاح إلى Supabase',
+      student: newStudent,
+    });
+  } catch (error: any) {
+    console.error('Create student error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'حدث خطأ أثناء إضافة الطالب' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { id, name, seatNumber, result, percentage } = body;
+
+    if (!id || !name || !seatNumber) {
+      return NextResponse.json(
+        { error: 'جميع البيانات والـ ID مطلوبة' },
+        { status: 400 }
+      );
+    }
+
+    const updatedStudent = await db.studentResult.update({
+      where: { id },
+      data: {
+        name: String(name).trim(),
+        normalizedName: normalizeArabic(String(name)),
+        seatNumber: String(seatNumber).trim(),
+        result: String(result || 'ناجح').trim(),
+        percentage: Number(percentage || 0),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'تم تعديل بيانات الطالب بنجاح في Supabase',
+      student: updatedStudent,
+    });
+  } catch (error: any) {
+    console.error('Update student error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'حدث خطأ أثناء تعديل البيانات' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
@@ -82,7 +163,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'تم حذف الطالب بنجاح',
+      message: 'تم حذف الطالب بنجاح من Supabase',
     });
   } catch (error) {
     console.error('Delete result error:', error);
