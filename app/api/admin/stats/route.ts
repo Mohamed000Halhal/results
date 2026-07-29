@@ -38,6 +38,15 @@ export async function GET() {
 
   } catch (error) {
     console.error('Stats API error:', error);
-    return NextResponse.json({ error: 'حدث خطأ في جلب البيانات' }, { status: 500 });
+    return NextResponse.json({
+      totalStudents: 0,
+      passedStudents: 0,
+      failedStudents: 0,
+      passedPercentage: 0,
+      visitorCount: 0,
+      lastImportDate: null,
+      lastImportedFile: null,
+    });
   }
 }
+

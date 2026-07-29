@@ -33,6 +33,10 @@ export default function AdminDashboardPage() {
           return;
         }
         const data = await res.json();
+        if (!res.ok || data.error) {
+          setErrorMsg(data.error || 'حدث خطأ في تحميل الإحصائيات');
+          return;
+        }
         setStats(data);
       } catch (err) {
         console.error('Stats error:', err);
@@ -43,6 +47,7 @@ export default function AdminDashboardPage() {
     }
     fetchStats();
   }, [router]);
+
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row">
@@ -88,7 +93,7 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <p className="text-3xl font-black text-sky-400 font-mono">
-                  {stats.visitorCount ? stats.visitorCount.toLocaleString('ar-EG') : 0}
+                  {(stats?.visitorCount || 0).toLocaleString('ar-EG')}
                 </p>
                 <p className="text-xs text-slate-500">زائر فريد (بدون تكرار)</p>
               </div>
@@ -102,11 +107,10 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <p className="text-3xl font-black text-white font-mono">
-                  {stats.totalStudents.toLocaleString('ar-EG')}
+                  {(stats?.totalStudents || 0).toLocaleString('ar-EG')}
                 </p>
                 <p className="text-xs text-slate-500">طالب في قاعدة البيانات</p>
               </div>
-
 
               {/* Passed Students */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -117,10 +121,10 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <p className="text-3xl font-black text-emerald-400 font-mono">
-                  {stats.passedStudents.toLocaleString('ar-EG')}
+                  {(stats?.passedStudents || 0).toLocaleString('ar-EG')}
                 </p>
                 <p className="text-xs text-emerald-500 font-semibold">
-                  نسبة النجاح: {stats.passedPercentage}%
+                  نسبة النجاح: {stats?.passedPercentage || 0}%
                 </p>
               </div>
 
@@ -133,12 +137,13 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <p className="text-3xl font-black text-rose-400 font-mono">
-                  {stats.failedStudents.toLocaleString('ar-EG')}
+                  {(stats?.failedStudents || 0).toLocaleString('ar-EG')}
                 </p>
                 <p className="text-xs text-rose-500 font-semibold">
-                  نسبة الرسوب: {stats.totalStudents > 0 ? (100 - stats.passedPercentage).toFixed(1) : 0}%
+                  نسبة الرسوب: {stats?.totalStudents ? (100 - stats.passedPercentage).toFixed(1) : 0}%
                 </p>
               </div>
+
 
               {/* Last Import Meta */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
